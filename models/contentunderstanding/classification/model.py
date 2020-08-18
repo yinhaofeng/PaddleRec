@@ -20,28 +20,30 @@ from paddlerec.core.model import ModelBase
 class Model(ModelBase):
     def __init__(self, config):
         ModelBase.__init__(self, config)
-        self.dict_dim = 100
-        self.max_len = 10
-        self.cnn_dim = 32
-        self.cnn_filter_size = 128
-        self.emb_dim = 8
-        self.hid_dim = 128
+        self.dict_dim = 33257
+        self.max_len = 100
+        self.cnn_dim = 128
+        self.cnn_filter_size1 = 1
+        self.cnn_filter_size2 = 2
+        self.cnn_filter_size3 = 3
+        self.emb_dim = 128
+        self.hid_dim = 96
         self.class_dim = 2
-        self.is_sparse = envs.get_global_env("hyper_parameters.is_sparse",
-                                             False)
+        self.is_sparse = False
 
     def input_data(self, is_infer=False, **kwargs):
         data = fluid.data(
             name="input", shape=[None, self.max_len], dtype='int64')
-        label = fluid.data(name="label", shape=[None, 1], dtype='int64')
         seq_len = fluid.data(name="seq_len", shape=[None], dtype='int64')
-        return [data, label, seq_len]
+        label = fluid.data(name="label", shape=[None, 1], dtype='int64')
+        return [data, seq_len ,label]
 
     def net(self, input, is_infer=False):
         """ network definition """
         data = input[0]
-        label = input[1]
-        seq_len = input[2]
+        seq_len = input[1]
+        label = input[2]
+        
 
         # embedding layer
         emb = fluid.embedding(
@@ -50,15 +52,31 @@ class Model(ModelBase):
             is_sparse=self.is_sparse)
         emb = fluid.layers.sequence_unpad(emb, length=seq_len)
         # convolution layer
-        conv = fluid.nets.sequence_conv_pool(
+        conv1 = fluid.nets.sequence_conv_pool(
             input=emb,
             num_filters=self.cnn_dim,
-            filter_size=self.cnn_filter_size,
+            filter_size=self.cnn_filter_size1,
             act="tanh",
             pool_type="max")
 
+        conv2 = fluid.nets.sequence_conv_pool(
+            input=emb,
+            num_filters=self.cnn_dim,
+            filter_size=self.cnn_filter_size2,
+            act="tanh",
+            pool_type="max")
+
+        conv3 = fluid.nets.sequence_conv_pool(
+            input=emb,
+            num_filters=self.cnn_dim,
+            filter_size=self.cnn_filter_size3,
+            act="tanh",
+            pool_type="max")
+
+        convs_out = fluid.layers.concat(input=[conv1,conv2,conv3], axis=1)
+
         # full connect layer
-        fc_1 = fluid.layers.fc(input=[conv], size=self.hid_dim)
+        fc_1 = fluid.layers.fc(input=convs_out, size=self.hid_dim, act="tanh")
         # softmax layer
         prediction = fluid.layers.fc(input=[fc_1],
                                      size=self.class_dim,
