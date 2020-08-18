@@ -31,6 +31,15 @@ hyper_parameters:
     class: Adagrad
     learning_rate: 0.001
   is_sparse: False
+  dict_dim: 33257
+  max_len: 100
+  cnn_dim: 128
+  cnn_filter_size1: 1
+  cnn_filter_size2: 2
+  cnn_filter_size3: 3
+  emb_dim: 128
+  hid_dim: 96
+  class_dim: 2
 
 mode: [train_runner,infer_runner]
 

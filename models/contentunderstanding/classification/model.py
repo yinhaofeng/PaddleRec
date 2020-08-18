@@ -20,16 +20,16 @@ from paddlerec.core.model import ModelBase
 class Model(ModelBase):
     def __init__(self, config):
         ModelBase.__init__(self, config)
-        self.dict_dim = 33257
-        self.max_len = 100
-        self.cnn_dim = 128
-        self.cnn_filter_size1 = 1
-        self.cnn_filter_size2 = 2
-        self.cnn_filter_size3 = 3
-        self.emb_dim = 128
-        self.hid_dim = 96
-        self.class_dim = 2
-        self.is_sparse = False
+        self.dict_dim = envs.get_global_env("hyper_parameters.dict_dim")
+        self.max_len = envs.get_global_env("hyper_parameters.max_len")
+        self.cnn_dim = envs.get_global_env("hyper_parameters.cnn_dim")
+        self.cnn_filter_size1 = envs.get_global_env("hyper_parameters.cnn_filter_size1")
+        self.cnn_filter_size2 = envs.get_global_env("hyper_parameters.cnn_filter_size2")
+        self.cnn_filter_size3 = envs.get_global_env("hyper_parameters.cnn_filter_size3")
+        self.emb_dim = envs.get_global_env("hyper_parameters.emb_dim")
+        self.hid_dim = envs.get_global_env("hyper_parameters.hid_dim")
+        self.class_dim = envs.get_global_env("hyper_parameters.class_dim")
+        self.is_sparse = envs.get_global_env("hyper_parameters.is_sparse")
 
     def input_data(self, is_infer=False, **kwargs):
         data = fluid.data(
