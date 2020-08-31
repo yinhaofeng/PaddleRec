@@ -94,6 +94,27 @@ class Trainer(object):
         self.which_fleet_mode()
         self.which_executor_mode()
         self.legality_check()
+        '''
+        完整的context字典：
+        {'status': 'uninit', 'is_exit': False, 'phases': [{'model': '{workspace}/model.py', 'thread_num': 1, 'name': 'phase_train', 'dataset_name': 'data1'}],
+         'exe': <paddle.fluid.executor.Executor object at 0x7f304de96d10>, 'is_pslib': False, 'is_infer': False, 
+         'dataset': [{'type': 'DataLoader', 'data_converter': '{workspace}/reader.py', 'data_path': '{workspace}/data/train', 'name': 'data1', 'batch_size': 10}, 
+                {'type': 'DataLoader', 'data_converter': '{workspace}/reader.py', 'data_path': '{workspace}/data/test', 'name': 'dataset_infer', 'batch_size': 2}], 
+         'engine': 1, 'fleet_mode': 'ps', 'place': <paddle.fluid.core_avx.CPUPlace object at 0x7f304de2ca40>, 
+         'env': {'phase': [{'model': '{workspace}/model.py', 'thread_num': 1, 'name': 'phase_train', 'dataset_name': 'data1'}, 
+                    {'model': '{workspace}/model.py', 'thread_num': 1, 'name': 'phase_infer', 'dataset_name': 'dataset_infer'}], 
+                 'hyper_parameters': {'cnn_dim': 128, 'optimizer': {'learning_rate': 0.001, 'class': 'Adagrad'}, 'max_len': 100, 'hid_dim': 96, 'emb_dim': 128, 'cnn_filter_size1': 1,
+                     'cnn_filter_size2': 2, 'dict_dim': 33257, 'class_dim': 2, 'cnn_filter_size3': 3, 'is_sparse': False}, 
+                 'workspace': 'models/contentunderstanding/classification', 
+                 'runner': [{'init_model_path': '', 'phases': 'phase_train', 'save_inference_feed_varnames': [], 
+                     'name': 'train_runner', 'save_checkpoint_path': 'increment', 'epochs': 16, 'save_inference_path': 'inference', 'save_checkpoint_interval': 1, 
+                     'save_inference_fetch_varnames': [], 'print_interval': 10, 'save_inference_interval': 1, 'device': 'cpu', 'class': 'train'}, 
+                     {'init_model_path': 'increment/14', 'phases': 'phase_infer', 'name': 'infer_runner', 'device': 'cpu', 'class': 'infer', 'print_interval': 1}], 
+                 'mode': ['train_runner', 'infer_runner'], 
+                 'dataset': [{'type': 'DataLoader', 'data_converter': '{workspace}/reader.py', 'data_path': '{workspace}/data/train', 'name': 'data1', 'batch_size': 10}, 
+                     {'type': 'DataLoader', 'data_converter': '{workspace}/reader.py', 'data_path': '{workspace}/data/test', 'name': 'dataset_infer', 'batch_size': 2}]},
+         'config_yaml': 'models/contentunderstanding/classification/config.yaml', 'device': 'CPU', 'is_fleet': False, 'runner_name': 'train_runner'}
+        '''
 
     def which_device(self):
         """R

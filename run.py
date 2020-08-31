@@ -29,6 +29,10 @@ device = ["CPU", "GPU"]
 
 engine_choices = ["TRAIN", "INFER", "LOCAL_CLUSTER_TRAIN", "CLUSTER_TRAIN"]
 
+#"TRAIN", "INFER" 单机
+#LOCAL_CLUSTER_TRAIN  本地模拟分布式参数服务器训练，多GPU卡
+#CLUSTER_TRAIN 分布式
+
 
 def engine_registry():
     engines["TRANSPILER"] = {}
@@ -46,6 +50,7 @@ def engine_registry():
 
 
 def get_inters_from_yaml(file, filters):
+    #从yaml文件读取指定的配置项目,没有被使用
     _envs = envs.load_yaml(file)
     flattens = envs.flatten_environs(_envs)
     inters = {}
@@ -63,6 +68,7 @@ def get_all_inters_from_yaml(file, filters):
     def fatten_env_namespace(namespace_nests, local_envs):
         for k, v in local_envs.items():
             if isinstance(v, dict):
+                #判断v是不是一个
                 nests = copy.deepcopy(namespace_nests)
                 nests.append(k)
                 fatten_env_namespace(nests, v)
@@ -79,6 +85,27 @@ def get_all_inters_from_yaml(file, filters):
                 global_k = ".".join(namespace_nests + [k])
                 all_flattens[global_k] = v
 
+    #递归算法，将每个块里的子项都叠在一起显示出来。dataset可以有多个不同名字的入口 ，- name: train_sample  - name: infer_sample ， 
+    #展开为全局的字典，key=dataset.一个dataset名字.batch_size
+    '''
+    以classification为例，all_flattens字典大致是这样的：
+     {'dataset.data1.data_path': '{workspace}/data/train', 'hyper_parameters.optimizer.class': 'Adagrad', 'runner.train_runner.name': 'train_runner',
+      'phase.phase_infer.thread_num': 1, 'runner.train_runner.epochs': 16, 'runner.infer_runner.name': 'infer_runner', 'dataset.dataset_infer.batch_size': 2,
+       'phase.phase_infer.dataset_name': 'dataset_infer', 'hyper_parameters.optimizer.learning_rate': 0.001, 'runner.train_runner.save_checkpoint_interval': 1,
+        'dataset.dataset_infer.type': 'DataLoader', 'runner.train_runner.save_inference_fetch_varnames': [], 'runner.infer_runner.device': 'cpu', 'hyper_parameters.cnn_filter_size1': 1,
+         'hyper_parameters.cnn_filter_size2': 2, 'hyper_parameters.cnn_filter_size3': 3, 'dataset.dataset_infer.name': 'dataset_infer',
+          'runner.infer_runner.init_model_path': 'increment/14', 'phase.phase_train.thread_num': 1, 'dataset.data1.type': 'DataLoader'
+     , 'dataset.dataset_infer.data_converter': '{workspace}/reader.py', 'runner.train_runner.init_model_path': '',
+      'runner.train_runner.print_interval': 10, 'runner.train_runner.phases': 'phase_train', 'phase.phase_infer.name': 'phase_infer', 'dataset.data1.name': 'data1',
+       'phase.phase_train.model': '{workspace}/model.py', 'dataset.data1.data_converter': '{workspace}/reader.py', 'hyper_parameters.emb_dim': 128,
+        'hyper_parameters.is_sparse': False, 'runner.train_runner.save_inference_feed_varnames': [], 'runner.train_runner.device': 'cpu', 'hyper_parameters.hid_dim': 96,
+         'hyper_parameters.max_len': 100, 'runner.infer_runner.phases': 'phase_infer', 'phase.phase_infer.model': '{workspace}/model.py', 'hyper_parameters.cnn_dim': 128,
+          'runner.train_runner.save_inference_path': 'inference', 'phase.phase_train.name': 'phase_train', 'runner.infer_runner.class': 'infer',
+           'runner.train_runner.save_inference_interval': 1, 'dataset.dataset_infer.data_path': '{workspace}/data/test', 'phase.phase_train.dataset_name': 'data1',
+            'runner.infer_runner.print_interval': 1, 'hyper_parameters.class_dim': 2, 'runner.train_runner.class': 'train', 'mode': ['train_runner', 'infer_runner'],
+             'workspace': 'models/contentunderstanding/classification', 'dataset.data1.batch_size': 10, 'runner.train_runner.save_checkpoint_path': 'increment',
+              'hyper_parameters.dict_dim': 33257}
+    '''
     fatten_env_namespace([], _envs)
     ret = {}
     for k, v in all_flattens.items():
@@ -86,6 +113,18 @@ def get_all_inters_from_yaml(file, filters):
             if k.startswith(f):
                 ret[k] = v
     return ret
+
+
+# yaml展平后，查找和filters列表中，字符串开头匹配的项返回,返回的是一个字典
+'''
+get_all_inters_from_yaml: {'runner.train_runner.save_inference_fetch_varnames': [], 'runner.infer_runner.device': 'cpu', 'runner.train_runner.name': 'train_runner', 
+'runner.infer_runner.class': 'infer', 'runner.train_runner.epochs': 16, 'runner.infer_runner.name': 'infer_runner', 'runner.infer_runner.init_model_path': 'increment/14', 
+'runner.train_runner.save_inference_interval': 1, 'runner.infer_runner.print_interval': 1, 'runner.train_runner.save_inference_feed_varnames': [], 
+'runner.train_runner.init_model_path': '', 'runner.train_runner.print_interval': 10, 'runner.train_runner.device': 'cpu', 'runner.train_runner.class': 'train', 
+'runner.train_runner.save_inference_path': 'inference', 'workspace': 'models/contentunderstanding/classification', 'runner.train_runner.save_checkpoint_interval': 1, 
+'runner.train_runner.phases': 'phase_train', 'runner.infer_runner.phases': 'phase_infer', 'runner.train_runner.save_checkpoint_path': 'increment', 
+'mode': ['train_runner', 'infer_runner']}
+'''
 
 
 def get_modes(running_config):
@@ -102,21 +141,27 @@ def get_modes(running_config):
     return modes
 
 
+#将键为mode的值放入列表modes中
+
+
 def get_engine(args, running_config, mode):
     transpiler = get_transpiler()
+    #是否使用PS
 
     engine_class = ".".join(["runner", mode, "class"])
     engine_device = ".".join(["runner", mode, "device"])
     device_gpu_choices = ".".join(["runner", mode, "selected_gpus"])
 
     engine = running_config.get(engine_class, None)
+    #对于每个runner建立engine
     if engine is None:
         raise ValueError("not find {} in engine_class , please check".format(
             engine))
     device = running_config.get(engine_device, None)
-
+    #对于每个runner建立device（cpu，gpu）
     engine = engine.upper()
     device = device.upper()
+    #小写字母转化为大写字母
 
     if device is None:
         print("not find device be specified in yaml, set CPU as default")
@@ -143,6 +188,7 @@ def get_engine(args, running_config, mode):
                                                               engine_choices))
 
     run_engine = engines[transpiler].get(engine, None)
+    #最终确定用哪个细分的engines
     return run_engine
 
 
@@ -539,6 +585,7 @@ def local_mpi_engine(args):
 
 
 def get_abs_model(model):
+    #获取config.yaml的路径，使用的envs在core/utils/envs.py
     if model.startswith("paddlerec."):
         dir = envs.paddlerec_adapter(model)
         path = os.path.join(dir, "config.yaml")
@@ -553,15 +600,19 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='paddle-rec run')
     parser.add_argument("-m", "--model", type=str)
     parser.add_argument("-b", "--backend", type=str, default=None)
+    #解析启动的命令
 
     abs_dir = os.path.dirname(os.path.abspath(__file__))
     envs.set_runtime_environs({"PACKAGE_BASE": abs_dir})
 
     args = parser.parse_args()
     args.model = get_abs_model(args.model)
+    #获取config.yaml的路径
+    #('args:', Namespace(backend=None, model='models/contentunderstanding/classification/config.yaml'))
 
     if not validation.yaml_validation(args.model):
         sys.exit(-1)
+    #验证yaml格式
 
     engine_registry()
     running_config = get_all_inters_from_yaml(
@@ -573,6 +624,8 @@ if __name__ == "__main__":
             "mode": mode,
             "workspace": running_config["workspace"]
         })
+        #写mode,workspace到系统的环境变量里
         which_engine = get_engine(args, running_config, mode)
+        #确定每一个runner用什么engine
         engine = which_engine(args)
         engine.run()

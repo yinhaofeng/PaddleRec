@@ -48,7 +48,7 @@ def as_numpy(tensor):
        tensor(Variable): a instance of Tensor
 
     Returns:
-        numpy.ndarray
+        numpy.nparray
     """
     if isinstance(tensor, fluid.core.LoDTensorArray):
         return [as_numpy(t) for t in tensor]
@@ -76,6 +76,7 @@ class RunnerBase(object):
     def _run(self, context, model_dict):
         reader_name = model_dict["dataset_name"]
         name = "dataset." + reader_name + "."
+        #reader_name： data1   name： dataset.data1.
 
         if envs.get_global_env(name + "type") == "DataLoader":
             return self._executor_dataloader_train(model_dict, context)
@@ -84,6 +85,7 @@ class RunnerBase(object):
             return None
 
     def _executor_dataset_train(self, model_dict, context):
+        #获取scope，program，reader以及metrics指标输出。然后启动train_from_dataset
         reader_name = model_dict["dataset_name"]
         model_name = model_dict["name"]
         model_class = context["model"][model_dict["name"]]["model"]
@@ -125,6 +127,7 @@ class RunnerBase(object):
                         debug=envs.get_global_env("debug", False))
 
     def _executor_dataloader_train(self, model_dict, context):
+        #获得program，metrics，reader，scope。然后启动exe.run。返回metrics信息
         model_name = model_dict["name"]
         model_class = context["model"][model_dict["name"]]["model"]
         program = self._get_dataloader_program(model_dict, context)
@@ -146,7 +149,7 @@ class RunnerBase(object):
             metrics_varnames.append(var.name)
             metrics_format.append("{}: {{}}".format(name))
         metrics_format = ", ".join(metrics_format)
-
+        #计算每个batch的指标
         reader = context["model"][model_dict["name"]]["model"]._data_loader
         reader.start()
         batch_id = 0
@@ -166,7 +169,7 @@ class RunnerBase(object):
                         for metrics_tensor in metrics_tensors
                     ]
                     metrics.extend(metrics_rets)
-
+                    #当运行一个batch后，输出指标
                     if batch_id % fetch_period == 0 and batch_id != 0:
                         print(metrics_format.format(*metrics))
                     batch_id += 1
@@ -238,6 +241,7 @@ class RunnerBase(object):
         return program
 
     def _get_ps_program(self, model_dict, context):
+        #设置_build_strategy，程序转化为数据并行程序
         model_name = model_dict["name"]
         model_class = context["model"][model_dict["name"]]["model"]
         program = context["model"][model_name]["main_program"].clone()
@@ -344,18 +348,25 @@ class SingleRunner(RunnerBase):
             envs.get_global_env("runner." + context["runner_name"] +
                                 ".epochs"))
         for epoch in range(epochs):
+            #在runner中，先对epoch循环
             for model_dict in context["phases"]:
+                #在每个epoch中，依次运行多个phases
                 model_class = context["model"][model_dict["name"]]["model"]
+                #确定输出的metrics
                 metrics = model_class._metrics
 
+                #确定运行一个phase的时间
                 begin_time = time.time()
+                #运行主体
                 result = self._run(context, model_dict)
                 end_time = time.time()
                 seconds = end_time - begin_time
                 message = "epoch {} done, use time: {}".format(epoch, seconds)
                 metrics_result = []
+                #metrics_result中即为global metrics的输出
                 for key in metrics:
                     if isinstance(metrics[key], Metric):
+                        #calc_global_metrics在metic.py中，单机的话得到最后一个batch的metrics
                         _str = metrics[key].calc_global_metrics(
                             None,
                             context["model"][model_dict["name"]]["scope"])
@@ -366,7 +377,7 @@ class SingleRunner(RunnerBase):
                 if len(metrics_result) > 0:
                     message += ", global metrics: " + ", ".join(metrics_result)
                 print(message)
-
+                #保存，改状态
                 with fluid.scope_guard(context["model"][model_dict["name"]][
                         "scope"]):
                     train_prog = context["model"][model_dict["name"]][
@@ -384,14 +395,17 @@ class PSRunner(RunnerBase):
         pass
 
     def run(self, context):
+        # 通过超参拿到迭代次数
         epochs = int(
             envs.get_global_env("runner." + context["runner_name"] +
                                 ".epochs"))
+        # 取第一个phase的模型与reader
         model_dict = context["env"]["phase"][0]
         model_class = context["model"][model_dict["name"]]["model"]
         metrics = model_class._metrics
         for epoch in range(epochs):
             begin_time = time.time()
+            # 调用run进行训练
             result = self._run(context, model_dict)
             end_time = time.time()
             seconds = end_time - begin_time
@@ -404,6 +418,7 @@ class PSRunner(RunnerBase):
                 metrics_result = []
                 for key in metrics:
                     if isinstance(metrics[key], Metric):
+                        #calc_global_metrics在metic.py中
                         _str = metrics[key].calc_global_metrics(
                             context["fleet"],
                             context["model"][model_dict["name"]]["scope"])

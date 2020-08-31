@@ -40,8 +40,11 @@ class GeneralTrainer(Trainer):
         self.regist_context_processor('startup_pass', self.startup)
         self.regist_context_processor('train_pass', self.runner)
         self.regist_context_processor('terminal_pass', self.terminal)
+        #regist_context_processor在基类trainer中，按照注册顺序加入Trainer基类中名为status_processor的字典
 
     def instance(self, context):
+        #通过环境变量启动paddle分布式的实例，执行在模型训练前的所有操作。用户可以在这里进行下载数据，import不同的包，配置环境变量等操作。instance的官方实现位于instance.py。
+        #您需要继承InstanceBase并命名为Instance，完成instance的实现，通过上下文信息字典context拿到模型所需信息，及保存相关配置。
         instance_class_path = envs.get_global_env(
             self.runner_env_name + ".instance_class_path", default_value=None)
         if instance_class_path:
@@ -60,12 +63,40 @@ class GeneralTrainer(Trainer):
                 raise ValueError("Instance Init Error")
             instance_path = os.path.join(self.abs_dir, "framework",
                                          "instance.py")
+            #instance基类的文件地址
             instance_class = envs.lazy_instance_by_fliename(
                 instance_path, instance_class_name)(context)
+            #根据文件地址和类名，生成一个文件中的类。然后用context作为参数得到该类的对象
 
         instance_class.instance(context)
+        #将context中的status转换为network_pass,fleet转换为使用的fleet
+
+    '''
+    完整的context字典：
+    {'status': 'uninit', 'is_exit': False, 
+    'phases': [{'model': '{workspace}/model.py', 'thread_num': 1, 'name': 'phase_train', 'dataset_name': 'data1'}],
+    'exe': <paddle.fluid.executor.Executor object at 0x7f304de96d10>, 'is_pslib': False, 'is_infer': False, 
+    'dataset': [{'type': 'DataLoader', 'data_converter': '{workspace}/reader.py', 'data_path': '{workspace}/data/train', 'name': 'data1', 'batch_size': 10}, 
+        {'type': 'DataLoader', 'data_converter': '{workspace}/reader.py', 'data_path': '{workspace}/data/test', 'name': 'dataset_infer', 'batch_size': 2}], 
+    'engine': 1, 'fleet_mode': 'ps', 'place': <paddle.fluid.core_avx.CPUPlace object at 0x7f304de2ca40>, 
+    'env': {'phase': [{'model': '{workspace}/model.py', 'thread_num': 1, 'name': 'phase_train', 'dataset_name': 'data1'}, 
+            {'model': '{workspace}/model.py', 'thread_num': 1, 'name': 'phase_infer', 'dataset_name': 'dataset_infer'}], 
+            'hyper_parameters': {'cnn_dim': 128, 'optimizer': {'learning_rate': 0.001, 'class': 'Adagrad'}, 'max_len': 100, 'hid_dim': 96, 'emb_dim': 128, 'cnn_filter_size1': 1,
+                'cnn_filter_size2': 2, 'dict_dim': 33257, 'class_dim': 2, 'cnn_filter_size3': 3, 'is_sparse': False}, 
+            'workspace': 'models/contentunderstanding/classification', 
+            'runner': [{'init_model_path': '', 'phases': 'phase_train', 'save_inference_feed_varnames': [], 
+                'name': 'train_runner', 'save_checkpoint_path': 'increment', 'epochs': 16, 'save_inference_path': 'inference', 'save_checkpoint_interval': 1, 
+                'save_inference_fetch_varnames': [], 'print_interval': 10, 'save_inference_interval': 1, 'device': 'cpu', 'class': 'train'}, 
+                {'init_model_path': 'increment/14', 'phases': 'phase_infer', 'name': 'infer_runner', 'device': 'cpu', 'class': 'infer', 'print_interval': 1}], 
+            'mode': ['train_runner', 'infer_runner'], 
+            'dataset': [{'type': 'DataLoader', 'data_converter': '{workspace}/reader.py', 'data_path': '{workspace}/data/train', 'name': 'data1', 'batch_size': 10}, 
+                {'type': 'DataLoader', 'data_converter': '{workspace}/reader.py', 'data_path': '{workspace}/data/test', 'name': 'dataset_infer', 'batch_size': 2}]},
+    'config_yaml': 'models/contentunderstanding/classification/config.yaml', 'device': 'CPU', 'is_fleet': False, 'runner_name': 'train_runner'}
+    '''
 
     def network(self, context):
+        #根据模型组网生成训练的program.您需要继承NetworkBase并命名为Network，完成build_network的实现，
+        #通过上下文信息字典context拿到模型所需信息，并在context中保存模型的program与scope信息
         network_class_path = envs.get_global_env(
             self.runner_env_name + ".network_class_path", default_value=None)
         if network_class_path:
@@ -84,12 +115,17 @@ class GeneralTrainer(Trainer):
                 raise ValueError("NetWork Init Error")
             network_path = os.path.join(self.abs_dir, "framework",
                                         "network.py")
+            #instance基类的文件地址
             network_class = envs.lazy_instance_by_fliename(
                 network_path, network_class_name)(context)
+            #根据文件地址和类名，生成一个文件中的类。然后用context作为参数得到该类的对象
 
         network_class.build_network(context)
+        #将context中的status转换为startup_pass,
 
     def startup(self, context):
+        #初始化模型组网中的各个参数，以及加载模型
+        #startup执行网络参数的初始化，或者模型的热启动，主要功能是执行exe.run(fluid.default_startup_program())
         startup_class_path = envs.get_global_env(
             self.runner_env_name + ".startup_class_path", default_value=None)
         if startup_class_path:
@@ -113,6 +149,7 @@ class GeneralTrainer(Trainer):
         startup_class.startup(context)
 
     def runner(self, context):
+        #会根据环境分别调用dataset与dataloader进行训练的流程。runner是运行的主要流程，主要功能是reader的运行，网络的运行，指标的打印以及模型的保存
         runner_class_path = envs.get_global_env(
             self.runner_env_name + ".runner_class_path", default_value=None)
         if runner_class_path:
@@ -137,6 +174,8 @@ class GeneralTrainer(Trainer):
         runner_class.run(context)
 
     def terminal(self, context):
+        #停止worker，以及执行模型训练后的所有操作
+        #terminal主要进行分布式训练结束后的stop worker，以及其他需要在模型训练完成后进行的工作，比如数据整理，模型上传等等
         terminal_class_path = envs.get_global_env(
             self.runner_env_name + ".terminal_class_path", default_value=None)
         if terminal_class_path:

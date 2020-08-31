@@ -30,6 +30,7 @@ def dataloader_by_name(readerclass,
 
     reader_class = lazy_instance_by_fliename(readerclass, reader_class_name)
 
+    #为reader获取数据路径，得到文件列表
     name = "dataset." + dataset_name + "."
     data_path = get_global_env(name + "data_path")
 

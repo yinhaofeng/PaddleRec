@@ -60,8 +60,10 @@ class SingleNetwork(NetworkBase):
                     with fluid.scope_guard(scope):
                         model_path = envs.os_path_adapter(
                             envs.workspace_adapter(model_dict["model"]))
+                        #获得模型的model.py文件地址
                         model = envs.lazy_instance_by_fliename(
                             model_path, "Model")(context["env"])
+                        #根据文件地址和类名，生成一个文件中的类。然后用context["env"]作为参数得到该类的对象
 
                         if context["is_infer"]:
                             model._infer_data_var = model.input_data(
@@ -70,6 +72,7 @@ class SingleNetwork(NetworkBase):
                         else:
                             model._data_var = model.input_data(
                                 dataset_name=model_dict["dataset_name"])
+                            #input_data的层放在model._data_var中
 
                         if envs.get_global_env("dataset." + dataset_name +
                                                ".type") == "DataLoader":
@@ -86,6 +89,7 @@ class SingleNetwork(NetworkBase):
                             model.net(model._data_var, context["is_infer"])
                             optimizer = model.optimizer()
                             optimizer.minimize(model._cost)
+
             context["model"][model_dict["name"]][
                 "main_program"] = train_program
             context["model"][model_dict["name"]][

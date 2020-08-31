@@ -75,6 +75,7 @@ class PSStartup(StartupBase):
         with fluid.scope_guard(context["model"][model_dict["name"]]["scope"]):
 
             train_prog = context["model"][model_dict["name"]]["main_program"]
+            #main_program用来计算，start_program用来初始化参数。在fc层中，w和b由start_program指定，计算y值由main_prgram完成
             startup_prog = context["model"][model_dict["name"]][
                 "startup_program"]
             with fluid.program_guard(train_prog, startup_prog):
